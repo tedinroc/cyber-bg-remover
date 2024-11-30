@@ -1,9 +1,11 @@
 workers = 1
 worker_class = 'sync'
-threads = 2
+threads = 1
 bind = '0.0.0.0:$PORT'
 timeout = 300
-max_requests = 50
-max_requests_jitter = 10
+max_requests = 10
+max_requests_jitter = 3
 preload_app = False
 worker_tmp_dir = '/dev/shm'
+worker_connections = 50
+keepalive = 2
