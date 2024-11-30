@@ -91,11 +91,15 @@
         <div class="cyber-border rounded-lg p-6 mb-8">
             <form id="uploadForm" class="space-y-6">
                 <div class="flex flex-col items-center space-y-4">
+                    <p class="text-sm text-center mb-4">
+                        建議上傳小於 400x400 像素的圖片以獲得最佳效果
+                    </p>
                     <label for="imageInput" class="cyber-button px-6 py-3 rounded-lg cursor-pointer">
                         選擇圖片
                     </label>
                     <input type="file" id="imageInput" accept="image/*" class="hidden">
                     <div id="fileName" class="text-sm"></div>
+                    <div id="errorMessage" class="text-red-500 text-sm hidden"></div>
                 </div>
                 
                 <div class="flex justify-center">
@@ -133,6 +137,7 @@
         document.getElementById('imageInput').addEventListener('change', function(e) {
             const fileName = e.target.files[0]?.name;
             document.getElementById('fileName').textContent = fileName || '';
+            document.getElementById('errorMessage').classList.add('hidden');
             
             if (fileName) {
                 const reader = new FileReader();
@@ -148,11 +153,12 @@
             
             const fileInput = document.getElementById('imageInput');
             if (!fileInput.files[0]) {
-                alert('請選擇圖片');
+                showError('請選擇圖片');
                 return;
             }
 
             document.querySelector('.loading').style.display = 'flex';
+            document.getElementById('errorMessage').classList.add('hidden');
             
             const formData = new FormData();
             formData.append('image', fileInput.files[0]);
@@ -170,14 +176,21 @@
                     document.getElementById('downloadBtn').href = url;
                     document.getElementById('result').classList.remove('hidden');
                 } else {
-                    alert('處理圖片時發生錯誤');
+                    const error = await response.json();
+                    showError(error.error || '處理圖片時發生錯誤');
                 }
             } catch (error) {
-                alert('上傳圖片時發生錯誤');
+                showError('上傳圖片時發生錯誤');
             } finally {
                 document.querySelector('.loading').style.display = 'none';
             }
         });
+
+        function showError(message) {
+            const errorElement = document.getElementById('errorMessage');
+            errorElement.textContent = message;
+            errorElement.classList.remove('hidden');
+        }
     </script>
 </body>
 </html>

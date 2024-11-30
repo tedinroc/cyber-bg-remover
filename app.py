@@ -1,18 +1,27 @@
-from flask import Flask, request, render_template, send_file
+from flask import Flask, request, render_template, send_file, jsonify
 from rembg import remove, new_session
 from PIL import Image
 import io
 import os
 import gc
 import numpy as np
+import logging
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# 初始化 rembg session，使用較小的模型
-session = new_session(model_name="u2net_human_seg")
+# 配置日誌
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# 初始化 rembg session，使用最小的模型
+try:
+    session = new_session(model_name="u2netp")
+except Exception as e:
+    logger.error(f"Error initializing model: {e}")
+    session = None
 
 @app.route('/')
 def home():
@@ -20,42 +29,60 @@ def home():
 
 @app.route('/remove-bg', methods=['POST'])
 def remove_background():
+    if session is None:
+        return jsonify({'error': 'Model not initialized'}), 500
+
     if 'image' not in request.files:
-        return 'No image uploaded', 400
+        return jsonify({'error': 'No image uploaded'}), 400
     
     file = request.files['image']
     if file.filename == '':
-        return 'No selected file', 400
+        return jsonify({'error': 'No selected file'}), 400
 
     try:
-        # 讀取並調整圖片大小
+        # 讀取圖片
         input_image = Image.open(file.stream)
+        logger.info(f"Original image size: {input_image.size}")
         
         # 轉換為 RGB 模式
         if input_image.mode != 'RGB':
             input_image = input_image.convert('RGB')
         
         # 限制圖片大小
-        max_size = 800
+        max_size = 400  # 降低最大尺寸
         if input_image.size[0] > max_size or input_image.size[1] > max_size:
             ratio = max_size / max(input_image.size)
             new_size = tuple(int(dim * ratio) for dim in input_image.size)
             input_image = input_image.resize(new_size, Image.Resampling.LANCZOS)
+            logger.info(f"Resized to: {new_size}")
         
         # 強制進行垃圾回收
         gc.collect()
         
-        # 移除背景
-        output_image = remove(input_image, session=session, alpha_matting=False, alpha_matting_foreground_threshold=0, alpha_matting_background_threshold=0)
+        # 移除背景，使用最基本的設置
+        output_image = remove(
+            input_image,
+            session=session,
+            alpha_matting=False,
+            alpha_matting_foreground_threshold=0,
+            alpha_matting_background_threshold=0,
+            post_process_mask=False
+        )
         
         # 釋放原始圖片內存
         input_image.close()
         del input_image
         gc.collect()
         
-        # 將處理後的圖片轉換為bytes，使用最大壓縮
+        # 將輸出圖片轉換為 bytes
         img_byte_arr = io.BytesIO()
-        output_image.save(img_byte_arr, format='PNG', optimize=True, quality=95)
+        output_image.save(
+            img_byte_arr,
+            format='PNG',
+            optimize=True,
+            quality=90,
+            compress_level=9
+        )
         img_byte_arr.seek(0)
         
         # 釋放處理後圖片的內存
@@ -63,10 +90,16 @@ def remove_background():
         del output_image
         gc.collect()
         
-        return send_file(img_byte_arr, mimetype='image/png')
+        return send_file(
+            img_byte_arr,
+            mimetype='image/png',
+            as_attachment=True,
+            download_name='removed_bg.png'
+        )
         
     except Exception as e:
-        return str(e), 500
+        logger.error(f"Error processing image: {e}")
+        return jsonify({'error': str(e)}), 500
     finally:
         gc.collect()
     
