@@ -1,0 +1,13 @@
+[Unit]
+Description=Cyber BG Remover Web Application
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/cyber-bg-remover
+Environment="PATH=/var/www/cyber-bg-remover/venv/bin"
+ExecStart=/var/www/cyber-bg-remover/venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8000 app:app
+
+[Install]
+WantedBy=multi-user.target
