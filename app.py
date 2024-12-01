@@ -8,7 +8,7 @@ import numpy as np
 import logging
 
 app = Flask(__name__)
-UPLOAD_FOLDER = 'uploads'
+UPLOAD_FOLDER = '/tmp/uploads' if os.environ.get('VERCEL_ENV') else 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
@@ -16,9 +16,9 @@ if not os.path.exists(UPLOAD_FOLDER):
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 初始化 rembg session，使用最小的模型
+# 初始化 rembg session
 try:
-    session = new_session(model_name="u2netp")
+    session = new_session(model_name="u2net")
 except Exception as e:
     logger.error(f"Error initializing model: {e}")
     session = None
@@ -42,14 +42,14 @@ def remove_background():
     try:
         # 讀取圖片
         input_image = Image.open(file.stream)
-        logger.info(f"Original image size: {input_image.size}")
+        logger.info(f"Processing image: {file.filename}, size: {input_image.size}")
         
         # 轉換為 RGB 模式
         if input_image.mode != 'RGB':
             input_image = input_image.convert('RGB')
         
         # 限制圖片大小
-        max_size = 400  # 降低最大尺寸
+        max_size = 2000
         if input_image.size[0] > max_size or input_image.size[1] > max_size:
             ratio = max_size / max(input_image.size)
             new_size = tuple(int(dim * ratio) for dim in input_image.size)
@@ -59,14 +59,14 @@ def remove_background():
         # 強制進行垃圾回收
         gc.collect()
         
-        # 移除背景，使用最基本的設置
+        # 移除背景
         output_image = remove(
             input_image,
             session=session,
-            alpha_matting=False,
-            alpha_matting_foreground_threshold=0,
-            alpha_matting_background_threshold=0,
-            post_process_mask=False
+            alpha_matting=True,
+            alpha_matting_foreground_threshold=240,
+            alpha_matting_background_threshold=10,
+            alpha_matting_erode_size=10
         )
         
         # 釋放原始圖片內存
@@ -80,8 +80,7 @@ def remove_background():
             img_byte_arr,
             format='PNG',
             optimize=True,
-            quality=90,
-            compress_level=9
+            quality=95
         )
         img_byte_arr.seek(0)
         
@@ -104,5 +103,5 @@ def remove_background():
         gc.collect()
     
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 3000))
     app.run(host='0.0.0.0', port=port)
